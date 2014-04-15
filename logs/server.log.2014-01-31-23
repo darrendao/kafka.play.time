@@ -1,0 +1,2 @@
+[2014-01-31 23:29:07,083] INFO [Kafka Server 0], shutting down (kafka.server.KafkaServer)
+[2014-01-31 23:29:07,090] INFO [Socket Server on Broker 0], Shutting down (kafka.network.SocketServer)
