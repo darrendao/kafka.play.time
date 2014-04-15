@@ -22,9 +22,12 @@ import java.util.concurrent.atomic._
 import java.net._
 import java.io._
 import java.nio.channels._
+import java.security._
+import javax.net.ssl._
 
 import kafka.common.KafkaException
 import kafka.utils._
+import kafka.security._
 
 /**
  * An NIO socket server. The threading model is
@@ -137,6 +140,7 @@ private[kafka] class Acceptor(val host: String, val port: Int, private val proce
    * Accept loop that checks for new connection attempts
    */
   def run() {
+    info("LET's RUN")
     serverChannel.register(selector, SelectionKey.OP_ACCEPT);
     startupComplete()
     var currentProcessor = 0
@@ -178,9 +182,11 @@ private[kafka] class Acceptor(val host: String, val port: Int, private val proce
         new InetSocketAddress(port)
       else
         new InetSocketAddress(host, port)
+
     val serverChannel = ServerSocketChannel.open()
     serverChannel.configureBlocking(false)
     try {
+      info("GONNA BIND")
       serverChannel.socket.bind(socketAddress)
       info("Awaiting socket connections on %s:%d.".format(socketAddress.getHostName, port))
     } catch {
@@ -188,13 +194,37 @@ private[kafka] class Acceptor(val host: String, val port: Int, private val proce
         throw new KafkaException("Socket server failed to bind to %s:%d: %s.".format(socketAddress.getHostName, port, e.getMessage), e)
     }
     serverChannel
+    // insecureServerChannel
   }
 
   /*
    * Accept a new connection
    */
   def accept(key: SelectionKey, processor: Processor) {
-    val serverSocketChannel = key.channel().asInstanceOf[ServerSocketChannel]
+    val ks = KeyStore.getInstance("JKS");
+    val ts = KeyStore.getInstance("JKS");
+    val keyStoreFile = "testkeys";
+    val trustStoreFile = "testkeys";
+    val passwd = "passphrase";
+
+    val passphrase = "passphrase".toCharArray();
+
+    ks.load(new FileInputStream(keyStoreFile), passphrase);
+    ts.load(new FileInputStream(trustStoreFile), passphrase);
+
+    val kmf = KeyManagerFactory.getInstance("SunX509");
+    kmf.init(ks, passphrase);
+
+    val tmf = TrustManagerFactory.getInstance("SunX509");
+    tmf.init(ts);
+
+    val sslCtx = SSLContext.getInstance("TLS");
+
+    sslCtx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+
+    val insecureServerSocketChannel = key.channel().asInstanceOf[ServerSocketChannel]
+    val serverSocketChannel = new SSLServerSocketChannel(insecureServerSocketChannel, sslCtx)
+
     serverSocketChannel.socket().setReceiveBufferSize(recvBufferSize)
 
     val socketChannel = serverSocketChannel.accept()
@@ -328,7 +358,7 @@ private[kafka] class Processor(val id: Int,
    */
   private def configureNewConnections() {
     while(newConnections.size() > 0) {
-      val channel = newConnections.poll()
+      val channel = newConnections.poll().asInstanceOf[SSLSocketChannel].getAdapteeChannel().asInstanceOf[SocketChannel]
       debug("Processor " + id + " listening to new connection from " + channel.socket.getRemoteSocketAddress)
       channel.register(selector, SelectionKey.OP_READ)
     }

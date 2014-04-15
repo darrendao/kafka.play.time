@@ -138,9 +138,9 @@ object KafkaBuild extends Build {
       }
   }
 
-  lazy val kafka    = Project(id = "Kafka", base = file(".")).aggregate(core, examples, contrib, perf).settings((commonSettings ++
+  lazy val kafka    = Project(id = "Kafka", base = file(".")).aggregate(core, examples, contrib, perf, security).settings((commonSettings ++
     runRatTask ++ releaseTask ++ releaseZipTask ++ releaseTarTask): _*)
-  lazy val core     = Project(id = "core", base = file("core")).settings(commonSettings: _*)
+  lazy val core     = Project(id = "core", base = file("core")).settings(commonSettings: _*) dependsOn (security)
   lazy val examples = Project(id = "java-examples", base = file("examples")).settings(commonSettings :_*) dependsOn (core)
   lazy val perf     = Project(id = "perf", base = file("perf")).settings((Seq(name := "kafka-perf") ++ commonSettings):_*) dependsOn (core)
 
@@ -148,5 +148,6 @@ object KafkaBuild extends Build {
   lazy val hadoopProducer = Project(id = "hadoop-producer", base = file("contrib/hadoop-producer")).settings(hadoopSettings ++ commonSettings: _*) dependsOn (core)
   lazy val hadoopConsumer = Project(id = "hadoop-consumer", base = file("contrib/hadoop-consumer")).settings(hadoopSettings ++ commonSettings: _*) dependsOn (core)
   lazy val clients = Project(id = "kafka-clients", base = file("clients"))
+  lazy val security = Project(id = "security", base = file("security"))
 
 }
